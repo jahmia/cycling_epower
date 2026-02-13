@@ -31,14 +31,10 @@ def get_slope(location1, location2):
     if not s and s != 0.0:
         print("WARNING: slope is unknown! Recomputing elevation.")
         recompute = True
-    if (-0.35 < s and s < 0.35 and s != 0.0):
+    if not recompute and (-0.35 < s and s < 0.35 and s != 0.0):
         print(f"WARNING: {s} is anormal slope! Recomputing elevation.")
         recompute = True
     if recompute:
-        print(s)
-        print(location1)
-        print(location2, end="\n\n")
-        # exit(1)
         set_point_elevation(location2)
         return get_slope(location1, location2)
     return s if s else 0
@@ -99,6 +95,9 @@ def set_point_power(point, next_point):
     speed = point.speed_between(next_point)
 
     slope = get_slope(point, next_point)
+    if slope != 0 and slope > 8:
+        print(slope)
+        return False
 
     point.power = calculate_power(speed * 3.6, slope/100, point.elevation)
     print(f"{point.time} Point at ({point.latitude:.6f}, {point.longitude:.6f}) "
@@ -111,6 +110,7 @@ def set_point_power(point, next_point):
     power_element = etree.Element('power')
     power_element.text = str(point.power)
     point.extensions.append(power_element)
+    return True
 
 def parse_file():
     """
@@ -123,6 +123,7 @@ def parse_file():
         ELEV_COUNT = 0
         for track in GPX.tracks:
             print(f"There is {len(GPX.tracks)} track(s) in this file.")
+            points_to_pop = []
             for segment in track.segments:
                 print(f"There is {len(track.segments)} segment(s) in the the actual segment(s).")
                 for i in range(len(segment.points) - 1):
@@ -134,7 +135,15 @@ def parse_file():
                     if not point_has_elevation(point):
                         set_point_elevation(point)
 
-                    set_point_power(point, next_point)
+                    good = set_point_power(point, next_point)
+                    prev_point = segment.points[i-1]
+                    if not good and abs(prev_point.elevation - point.elevation) < 0.7:
+                        print(prev_point, prev_point.elevation)
+                        print(f"{point} {point.elevation}")
+                        points_to_pop.append(i)
+            # FIX loop segments by index
+            for index in sorted(points_to_pop, reverse=True):
+                segment.remove_point(i)
 
 def write_file():
     """
