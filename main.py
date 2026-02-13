@@ -1,4 +1,5 @@
 """Module providing estimated power into gpx file."""
+import sys
 import gpxpy
 import gpxpy.gpx
 
@@ -11,7 +12,7 @@ RIDER = {
     'm' : 9
 }
 
-FILENAME = "test_files/3076816628 copy.gpx"
+FILENAME = "test_files/3076816628.gpx"
 
 def get_slope(location1, location2):
     """
@@ -22,6 +23,9 @@ def get_slope(location1, location2):
     """
     # Direct method on Location object
     s = location1.elevation_angle(location2)
+    if not s:
+        s = 0
+        print(0)
     return s
 
 def calculate_power(speed, gradient, elevation, verbose=False):
@@ -42,6 +46,31 @@ def point_have_power(point):
             return True
     return False
 
+def point_has_elevation(point):
+    """
+    Given a point, check if it has elevation data
+    """
+    res = point.elevation if point.elevation else False
+    return res
+
+def set_point_power(point, next_point):
+    """Given a point, set his power value"""
+    speed = point.speed_between(next_point)
+
+    slope = get_slope(point, next_point)
+
+    point.power = calculate_power(speed * 3.6, slope/100, point.elevation)
+    print(f"{point.time} Point at ({point.latitude:.6f}, {point.longitude:.6f}) "
+        f"{point.elevation} meters,\t"
+        f"{slope:.3f} %,\t"
+        f"{speed * 3.6:.2f} km/h,\t"
+        f"{point.power} W")
+
+    # Also add to extensions for GPX serialization
+    power_element = etree.Element('power')
+    power_element.text = str(point.power)
+    point.extensions.append(power_element)
+
 def parse_file():
     """
      Parsing an existing file
@@ -58,22 +87,11 @@ def parse_file():
                         print("Already have power, skipping")
                         continue
                     next_point = segment.points[i + 1]
+                    if not point_has_elevation(point):
+                        point.elevation = 1003
 
-                    speed = point.speed_between(next_point)
-
-                    slope = get_slope(point, next_point)
-
-                    point.power = calculate_power(speed * 3.6, slope/100, point.elevation)
-                    print(f"{point.time} Point at ({point.latitude:.6f}, {point.longitude:.6f}) "
-                        f"{point.elevation} meters,\t"
-                        f"{slope:.3f} %,\t"
-                        f"{speed * 3.6:.2f} km/h,\t"
-                        f"{point.power} W")
-                
-                    # Also add to extensions for GPX serialization
-                    power_element = etree.Element('power')
-                    power_element.text = str(point.power)
-                    point.extensions.append(power_element)
+                    set_point_power(point, next_point)
+                    
         return gpx
 
 def write_file(fb):
@@ -102,5 +120,9 @@ def get_max():
     '''
 
 if __name__ == "__main__":
+    if len(sys.argv) <= 1:
+        print("This module needs a parameter")
+        exit(1)
+    FILENAME = sys.argv[1]
     file = parse_file()
     write_file(file)
