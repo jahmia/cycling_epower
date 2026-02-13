@@ -2,6 +2,7 @@
 import sys
 import gpxpy
 import gpxpy.gpx
+import requests
 
 from lxml import etree
 
@@ -12,21 +13,35 @@ RIDER = {
     'm' : 9
 }
 
+ELEV_COUNT = 0
+GPX = None
+
 FILENAME = "test_files/3076816628.gpx"
 
 def get_slope(location1, location2):
     """
-    Docstring for get_slope
+    Given two points, get slope
     
     :param l1: Origin point
     :param l2: Next point
     """
     # Direct method on Location object
     s = location1.elevation_angle(location2)
-    if not s:
-        s = 0
-        print(0)
-    return s
+    recompute = False
+    if not s and s != 0.0:
+        print("WARNING: slope is unknown! Recomputing elevation.")
+        recompute = True
+    if (-0.35 < s and s < 0.35 and s != 0.0):
+        print(f"WARNING: {s} is anormal slope! Recomputing elevation.")
+        recompute = True
+    if recompute:
+        print(s)
+        print(location1)
+        print(location2, end="\n\n")
+        # exit(1)
+        set_point_elevation(location2)
+        return get_slope(location1, location2)
+    return s if s else 0
 
 def calculate_power(speed, gradient, elevation, verbose=False):
     """
@@ -50,8 +65,34 @@ def point_has_elevation(point):
     """
     Given a point, check if it has elevation data
     """
-    res = point.elevation if point.elevation else False
+    res = True if point.elevation else False
     return res
+
+def get_elevation_from_api(lat, lon):
+    """
+    Elevation using Open Elevation API (free, no key required)
+    Returns elevation in meters
+    """
+    global ELEV_COUNT
+    url = f"https://api.open-elevation.com/api/v1/lookup?locations={lat},{lon}"
+    try:
+        response = requests.get(url, timeout=60)
+        data = response.json()
+        ELEV_COUNT += 1
+        return data['results'][0]['elevation']
+    except:
+        return None
+
+def set_point_elevation(point):
+    """
+    Given a point, set his elevation
+    """
+    global ELEV_COUNT
+    global GPX
+    point.elevation = get_elevation_from_api(point.latitude, point.longitude)
+    if ELEV_COUNT == 10:
+        write_file()
+        ELEV_COUNT = 0
 
 def set_point_power(point, next_point):
     """Given a point, set his power value"""
@@ -75,10 +116,13 @@ def parse_file():
     """
      Parsing an existing file
     """
+    global GPX
+    global ELEV_COUNT
     with open(FILENAME, 'r', encoding="utf-8") as gpx_file:
-        gpx = gpxpy.parse(gpx_file)
-        for track in gpx.tracks:
-            print(f"There is {len(gpx.tracks)} track(s) in this file.")
+        GPX = gpxpy.parse(gpx_file)
+        ELEV_COUNT = 0
+        for track in GPX.tracks:
+            print(f"There is {len(GPX.tracks)} track(s) in this file.")
             for segment in track.segments:
                 print(f"There is {len(track.segments)} segment(s) in the the actual segment(s).")
                 for i in range(len(segment.points) - 1):
@@ -88,20 +132,19 @@ def parse_file():
                         continue
                     next_point = segment.points[i + 1]
                     if not point_has_elevation(point):
-                        point.elevation = 1003
+                        set_point_elevation(point)
 
                     set_point_power(point, next_point)
-                    
-        return gpx
 
-def write_file(fb):
+def write_file():
     """
-    Docstring for write_file
+    Write in the GPX file
     
     :param fb: file buffer
     """
+    global GPX
     with open(FILENAME, 'w', encoding="utf-8") as gpx_file:
-        gpx_file.write(fb.to_xml())
+        gpx_file.write(GPX.to_xml())
         print("Saving")
 
 def get_datas():
@@ -123,6 +166,7 @@ if __name__ == "__main__":
     if len(sys.argv) <= 1:
         print("This module needs a parameter")
         exit(1)
+    ELEV_COUNT = 0
     FILENAME = sys.argv[1]
-    file = parse_file()
-    write_file(file)
+    parse_file()
+    write_file()

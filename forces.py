@@ -39,7 +39,7 @@ def gravity(slope, weights):
         float: 
     """
     assert -0.35 < slope and slope < 0.35, (
-        "The slope value is incorrect. It must be between [-0,35:0,35], given %s", slope
+        f"The slope value is incorrect. It must be between [-0,35:0,35], given {slope}"
     )
     res = G * sin(atan(slope)) * (weights['M'] + weights['m'])
     return res
