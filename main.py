@@ -29,8 +29,9 @@ def get_slope(location1, location2):
     s = location1.elevation_angle(location2)
     recompute = False
     if not s and s != 0.0:
-        print("WARNING: slope is unknown! Recomputing elevation.")
+        print("WARNING: slope is unknown! You have to recomute elevation manually.")
         recompute = True
+        exit(1)
     if not recompute and (-0.35 < s and s < 0.35 and s != 0.0):
         print(f"WARNING: {s} is anormal slope! Recomputing elevation.")
         recompute = True
@@ -84,7 +85,6 @@ def set_point_elevation(point):
     Given a point, set his elevation
     """
     global ELEV_COUNT
-    global GPX
     point.elevation = get_elevation_from_api(point.latitude, point.longitude)
     if ELEV_COUNT == 10:
         write_file()
@@ -95,7 +95,7 @@ def set_point_power(point, next_point):
     speed = point.speed_between(next_point)
 
     slope = get_slope(point, next_point)
-    if slope != 0 and slope > 8:
+    if slope != 0 and slope > 35:
         print(slope)
         return False
 
@@ -124,12 +124,12 @@ def parse_file():
         for track in GPX.tracks:
             print(f"There is {len(GPX.tracks)} track(s) in this file.")
             points_to_pop = []
-            for segment in track.segments:
+            for j, segment in enumerate(track.segments):
                 print(f"There is {len(track.segments)} segment(s) in the the actual segment(s).")
                 for i in range(len(segment.points) - 1):
                     point = segment.points[i]
                     if point_have_power(point):
-                        print("Already have power, skipping")
+                        # print("Already have power, skipping")
                         continue
                     next_point = segment.points[i + 1]
                     if not point_has_elevation(point):
@@ -141,9 +141,11 @@ def parse_file():
                         print(prev_point, prev_point.elevation)
                         print(f"{point} {point.elevation}")
                         points_to_pop.append(i)
-            # FIX loop segments by index
-            for index in sorted(points_to_pop, reverse=True):
-                segment.remove_point(i)
+                
+                # FIX loop segments by index
+                # for index in sorted(points_to_pop, reverse=True):
+                #     track.segments[j].remove_point(index)
+                points_to_pop = []
 
 def write_file():
     """
