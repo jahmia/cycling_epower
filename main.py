@@ -21,7 +21,7 @@ FILENAME = "test_files/3076816628.gpx"
 def get_slope(location1, location2):
     """
     Given two points, get slope
-    
+
     :param l1: Origin point
     :param l2: Next point
     """
@@ -29,8 +29,10 @@ def get_slope(location1, location2):
     s = location1.elevation_angle(location2)
     recompute = False
     if not s and s != 0.0:
-        print("WARNING: slope is unknown! You have to recomute elevation manually.")
+        print("WARNING: slope is unknown! You have to recompute elevation manually.")
         recompute = True
+        # FIX We need decimal precision with our elevation data
+        # There is some scripts to begin from test_files folder
         exit(1)
     if not recompute and (-0.35 < s and s < 0.35 and s != 0.0):
         print(f"WARNING: {s} is anormal slope! Recomputing elevation.")
@@ -50,7 +52,7 @@ def calculate_power(speed, gradient, elevation, verbose=False):
 def point_have_power(point):
     """
     Check if a point have a power extension
-    
+
     :param point: GPX Point
     """
     for ext in point.extensions:
@@ -141,7 +143,7 @@ def parse_file():
                         print(prev_point, prev_point.elevation)
                         print(f"{point} {point.elevation}")
                         points_to_pop.append(i)
-                
+
                 # FIX loop segments by index
                 # for index in sorted(points_to_pop, reverse=True):
                 #     track.segments[j].remove_point(index)
@@ -150,13 +152,26 @@ def parse_file():
 def write_file():
     """
     Write in the GPX file
-    
+
     :param fb: file buffer
     """
-    global GPX
     with open(FILENAME, 'w', encoding="utf-8") as gpx_file:
         gpx_file.write(GPX.to_xml())
         print("Saving")
+
+def mean_power():
+    """
+     Parsing an existing file
+    """
+    global GPX
+    global ELEV_COUNT
+    with open(FILENAME, 'r', encoding="utf-8") as gpx_file:
+        GPX = gpxpy.parse(gpx_file)
+        ELEV_COUNT = 0
+        for track in GPX.tracks:
+            for j, segment in enumerate(track.segments):
+                for i in range(len(segment.points)):
+                    continue
 
 def get_datas():
     """
@@ -173,6 +188,44 @@ def get_max():
     Get max power during an activity
     '''
 
+def show_stats():
+    """
+    Some stats about the gpx
+    """
+    global GPX
+    print("\n=== GPX File Analysis ===\n")
+
+    # Total distance (2D: lat/lon only)
+    distance_2d = GPX.length_2d()
+    print(f"Distance (2D): {distance_2d / 1000:.2f} km")
+
+    # Total distance (3D: includes elevation)
+    distance_3d = GPX.length_3d()
+    print(f"Distance (3D): {distance_3d / 1000:.2f} km\n")
+
+    # Elevation data
+    min_elev, max_elev = GPX.get_elevation_extremes()
+    print(f"Min elevation: {min_elev}m")
+    print(f"Max elevation: {max_elev}m\n")
+
+    # Uphill/Downhill
+    uphill, downhill = GPX.get_uphill_downhill()
+    print(f"Total uphill:\t{uphill:.0f}m")
+    print(f"Total downhill: {downhill:.0f}m\n")
+
+    # Time information
+    start_time, end_time = GPX.get_time_bounds()
+    print(f"Started:\t{start_time}")
+    print(f"Ended:\t\t{end_time}\n")
+
+    # Duration
+    duration = GPX.get_duration()
+    print(f"Duration: {duration:.0f} seconds ({duration/3600:.2f} hours)")
+
+    # Total points
+    total_points = GPX.get_track_points_no()
+    print(f"Total points: {total_points}")
+
 if __name__ == "__main__":
     if len(sys.argv) <= 1:
         print("This module needs a parameter")
@@ -180,4 +233,6 @@ if __name__ == "__main__":
     ELEV_COUNT = 0
     FILENAME = sys.argv[1]
     parse_file()
+    show_stats()
+    # mean_power()
     write_file()
