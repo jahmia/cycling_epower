@@ -33,8 +33,8 @@ def get_slope(location1, location2):
         recompute = True
         # FIX We need decimal precision with our elevation data
         # There is some scripts to begin from test_files folder
-        exit(1)
-    if not recompute and (-0.35 < s and s < 0.35 and s != 0.0):
+        # exit(1)
+    if not recompute and (-0.35 < s < 0.35 and s != 0.0):
         print(f"WARNING: {s} is anormal slope! Recomputing elevation.")
         recompute = True
     if recompute:
@@ -60,13 +60,6 @@ def point_have_power(point):
             return True
     return False
 
-def point_has_elevation(point):
-    """
-    Given a point, check if it has elevation data
-    """
-    res = True if point.elevation else False
-    return res
-
 def get_elevation_from_api(lat, lon):
     """
     Elevation using Open Elevation API (free, no key required)
@@ -82,15 +75,17 @@ def get_elevation_from_api(lat, lon):
     except:
         return None
 
-def set_point_elevation(point):
+def set_point_elevation(points):
     """
     Given a point, set his elevation
     """
     global ELEV_COUNT
-    point.elevation = get_elevation_from_api(point.latitude, point.longitude)
-    if ELEV_COUNT == 10:
-        write_file()
-        ELEV_COUNT = 0
+    for point in points:
+        point.elevation = get_elevation_from_api(point.latitude, point.longitude)
+        print(f"Setting elevation for ({point.latitude}, {point.longitude}) : {point.elevation}")
+        if ELEV_COUNT == 10:
+            write_file()
+            ELEV_COUNT = 0
 
 def set_point_power(point, next_point):
     """Given a point, set his power value"""
@@ -98,7 +93,6 @@ def set_point_power(point, next_point):
 
     slope = get_slope(point, next_point)
     if slope != 0 and slope > 35:
-        print(slope)
         return False
 
     point.power = calculate_power(speed * 3.6, slope/100, point.elevation)
@@ -123,9 +117,9 @@ def parse_file():
     with open(FILENAME, 'r', encoding="utf-8") as gpx_file:
         GPX = gpxpy.parse(gpx_file)
         ELEV_COUNT = 0
+        update = False
         for track in GPX.tracks:
             print(f"There is {len(GPX.tracks)} track(s) in this file.")
-            points_to_pop = []
             for j, segment in enumerate(track.segments):
                 print(f"There is {len(track.segments)} segment(s) in the the actual segment(s).")
                 for i in range(len(segment.points) - 1):
@@ -134,20 +128,21 @@ def parse_file():
                         # print("Already have power, skipping")
                         continue
                     next_point = segment.points[i + 1]
-                    if not point_has_elevation(point):
-                        set_point_elevation(point)
+                    if not (point.elevation or next_point.elevation):
+                        set_point_elevation([point, next_point])
 
                     good = set_point_power(point, next_point)
-                    prev_point = segment.points[i-1]
-                    if not good and abs(prev_point.elevation - point.elevation) < 0.7:
-                        print(prev_point, prev_point.elevation)
-                        print(f"{point} {point.elevation}")
-                        points_to_pop.append(i)
+                    # prev_point = segment.points[i-1]
+                    if good:
+                        update = True
 
-                # FIX loop segments by index
-                # for index in sorted(points_to_pop, reverse=True):
-                #     track.segments[j].remove_point(index)
-                points_to_pop = []
+                    if not good and abs(next_point.elevation - point.elevation) < 0.7:
+                        print(next_point, next_point.elevation)
+                        print(f"{point} {point.elevation}")
+                        point.power = 0
+                        update = True
+    return update
+
 
 def write_file():
     """
@@ -232,7 +227,8 @@ if __name__ == "__main__":
         exit(1)
     ELEV_COUNT = 0
     FILENAME = sys.argv[1]
-    parse_file()
+    save = parse_file()
     show_stats()
     # mean_power()
-    write_file()
+    if save:
+        write_file()
