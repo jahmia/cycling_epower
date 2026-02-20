@@ -30,15 +30,19 @@ def get_slope(location1, location2):
     s = location1.elevation_angle(location2)
     recompute = False
     if not s and s != 0.0:
+        # No elevation data
         recompute = True
         # FIX We need decimal precision with our elevation data
         # There is some scripts to begin from test_files folder
-        # exit(1)
-    if not recompute and (-0.35 < s < 0.35 and s != 0.0):
-        print(f"WARNING: {s} is anormal slope! Recomputing elevation.")
-        recompute = True
+    d = location1.distance_3d(location2)
+    # if not recompute and (-0.35 < s < 0.35 and s != 0.0):
+    #     recompute = True
     if recompute:
-        set_point_elevation([location2])
+        # print(location1.latitude, location1.longitude, location1.elevation)
+        # print(location2.latitude, location2.longitude, location2.elevation)
+        print(f"WARNING: {s*100:.2f} % is anormal slope! Recomputing elevation.")
+        print(f"Distance from previous point : {d:.2f} m")
+        set_point_elevation([location1, location2])
         return get_slope(location1, location2)
     return s if s else 0
 
@@ -81,8 +85,10 @@ def set_point_elevation(points):
     """
     global ELEV_COUNT
     for point in points:
+        elevation_before = point.elevation or None
         point.elevation = get_elevation_from_api(point.latitude, point.longitude)
-        print(f"Setting elevation for ({point.latitude}, {point.longitude}) : {point.elevation}")
+        print(f"Setting elevation for ({point.latitude}, {point.longitude}) :"
+               f"{point.elevation} m, previously {elevation_before} m")
         if ELEV_COUNT == 10:
             write_file()
             ELEV_COUNT = 0
@@ -195,14 +201,13 @@ def show_stats():
     global GPX
     print("\n=== GPX File Analysis ===\n")
     # Tracks and points
-    print("\n--- Track Information ---")
     print(f"Number of tracks: {len(GPX.tracks)}")
     print(f"Number of waypoints: {len(GPX.waypoints)}")
     print(f"Number of routes: {len(GPX.routes)}")
     print(f"Total track points: {GPX.get_track_points_no()}")
 
     # Get bounds
-    print("=== Geographic Bounds ===\n")
+    print("\n=== Geographic Bounds ===")
     bounds = GPX.get_bounds()
     if bounds:
         print(f"Latitude:  {bounds.min_latitude:.4f} to {bounds.max_latitude:.4f}")
@@ -244,5 +249,5 @@ if __name__ == "__main__":
     SAVE = parse_file()
     if SAVE:
         write_file()
-    # show_stats()
+    show_stats()
     power_stats()
