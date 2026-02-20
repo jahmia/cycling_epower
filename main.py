@@ -26,6 +26,7 @@ def get_slope(location1, location2):
     :param l1: Origin point
     :param l2: Next point
     """
+    # FIX Clean code
     # Direct method on Location object
     s = location1.elevation_angle(location2)
     recompute = False
@@ -34,13 +35,9 @@ def get_slope(location1, location2):
         recompute = True
         # FIX We need decimal precision with our elevation data
         # There is some scripts to begin from test_files folder
-    d = location1.distance_3d(location2)
-    # if not recompute and (-0.35 < s < 0.35 and s != 0.0):
-    #     recompute = True
     if recompute:
-        # print(location1.latitude, location1.longitude, location1.elevation)
-        # print(location2.latitude, location2.longitude, location2.elevation)
         print(f"WARNING: {s*100:.2f} % is anormal slope! Recomputing elevation.")
+        d = location1.distance_3d(location2)
         print(f"Distance from previous point : {d:.2f} m")
         set_point_elevation([location1, location2])
         return get_slope(location1, location2)
@@ -93,6 +90,18 @@ def set_point_elevation(points):
             write_file()
             ELEV_COUNT = 0
 
+def has_null_cadence(point):
+    """
+    Given a point, check if it has cadence and his value equals 0
+    """
+    res = False
+    for ext in point.extensions:
+        for child in ext:
+            if "cad" in child.tag and child.text:
+                cadence = int(child.text)
+                res = True if cadence == 0 else False
+    return res
+
 def set_point_power(point, next_point):
     """Given a point, set his power value"""
     speed = point.speed_between(next_point)
@@ -102,11 +111,13 @@ def set_point_power(point, next_point):
         return False
 
     point.power = calculate_power(speed * 3.6, slope/100, point.elevation)
-    print(f"{point.time} Point at ({point.latitude:.6f}, {point.longitude:.6f}) "
-        f"{point.elevation} meters,\t"
-        f"{slope:.3f} %,\t"
-        f"{speed * 3.6:.2f} km/h,\t"
-        f"{point.power} W")
+    if point.power > 246 and has_null_cadence(point):
+        print(f"{point.time} Point at ({point.latitude:.6f}, {point.longitude:.6f}) "
+            f"{point.elevation} meters,\t"
+            f"{slope:.3f} %,\t"
+            f"{speed * 3.6:.2f} km/h,\t"
+            f"{point.power} W ---skipped")
+        point.power = 0
 
     # Also add to extensions for GPX serialization
     power_element = etree.Element('power')
@@ -117,6 +128,7 @@ def set_point_power(point, next_point):
 def parse_file():
     """
      Parsing an existing file
+     If there is any modification then SAVE file
     """
     global GPX
     global ELEV_COUNT
@@ -129,21 +141,13 @@ def parse_file():
                 for i in range(len(segment.points) - 1):
                     point = segment.points[i]
                     if point_have_power(point):
-                        # print("Already have power, skipping")
                         continue
                     next_point = segment.points[i + 1]
                     if not (point.elevation or next_point.elevation):
                         set_point_elevation([point, next_point])
 
                     good = set_point_power(point, next_point)
-                    # prev_point = segment.points[i-1]
                     if good:
-                        update = True
-
-                    if not good and abs(next_point.elevation - point.elevation) < 0.7:
-                        print(next_point, next_point.elevation)
-                        print(f"{point} {point.elevation}")
-                        point.power = 0
                         update = True
     return update
 
@@ -157,20 +161,6 @@ def write_file():
         gpx_file.write(GPX.to_xml())
         print("Saving")
 
-def mean_power():
-    """
-     Parsing an existing file
-    """
-    global GPX
-    global ELEV_COUNT
-    with open(FILENAME, 'r', encoding="utf-8") as gpx_file:
-        GPX = gpxpy.parse(gpx_file)
-        ELEV_COUNT = 0
-        for track in GPX.tracks:
-            for j, segment in enumerate(track.segments):
-                for i in range(len(segment.points)):
-                    continue
-
 def power_stats():
     """
     Show some power stats
@@ -181,18 +171,17 @@ def power_stats():
         GPX = gpxpy.parse(gpx_file)
         for i, point_data in enumerate(GPX.get_points_data()):
             point = point_data.point
-            # FIX point.power is in extension
-            # power_data[i] = point.power if point.power else 0
             if point.extensions and len(point.extensions) > 1:
-                power_ext = point.extensions[1]
-                p = int(power_ext.text)
-            else:
-                print(f"Point at {point.time} have no power data")
-                p = 0
-            power_data.append(p)
+                for child in point.extensions:
+                    if 'power' in child.tag.lower() and int(child.text) != 0:
+                        power_data.append(int(child.text))
+
     print("\n--- Power data ---")
-    print(f"Max: {max(power_data)} W")
-    print(f"Avg: {int(np.average(power_data))} W")
+    pp = len(power_data)/GPX.get_track_points_no()
+    print(f"{len(power_data)} of {GPX.get_track_points_no()} points ({pp * 100:.2f} %) with power")
+    if power_data:
+        print(f"Max: {max(power_data)} W")
+        print(f"Avg: {int(np.average(power_data))} W")
 
 def show_stats():
     """
