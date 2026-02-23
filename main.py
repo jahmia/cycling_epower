@@ -161,6 +161,15 @@ def write_file():
         gpx_file.write(GPX.to_xml())
         print("Saving")
 
+def mean_power(data):
+    """
+    Show surrounding points of the max power point
+    """
+    global FILENAME
+    with open(FILENAME, 'r', encoding="utf-8") as gpx_file:
+        GPX = gpxpy.parse(gpx_file)
+
+
 def power_stats(edited):
     """
     Show some power stats
@@ -175,14 +184,16 @@ def power_stats(edited):
             if point.extensions and len(point.extensions) > 1:
                 for child in point.extensions:
                     if 'power' in child.tag.lower() and int(child.text) != 0:
-                        power_data.append(int(child.text))
+                        power_data.append((i, int(child.text)))
 
     print("\n--- Power data ---")
     pp = len(power_data)/GPX.get_track_points_no()
     print(f"{len(power_data)} of {GPX.get_track_points_no()} points ({pp * 100:.2f} %) with power")
     if power_data:
-        print(f"Max: {max(power_data)} W")
-        print(f"Avg: {int(np.average(power_data))} W")
+        max_tuple = max(power_data, key=lambda x: x[1])
+        print(f"Max: {max_tuple[1]} W")
+        print(f"Avg: {np.average([item[1] for item in power_data]):.0f} W")
+        # mean_power(max_tuple)
 
 def show_stats():
     """
@@ -240,4 +251,4 @@ if __name__ == "__main__":
     if SAVE:
         write_file()
     show_stats()
-    power_stats(SAVE)
+    power_stats(False)
