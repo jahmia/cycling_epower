@@ -111,12 +111,13 @@ def set_point_power(point, next_point):
         return False
 
     point.power = calculate_power(speed * 3.6, slope/100, point.elevation)
-    if point.power > 246 and has_null_cadence(point):
-        print(f"{point.time} Point at ({point.latitude:.6f}, {point.longitude:.6f}) "
-            f"{point.elevation} meters,\t"
-            f"{slope:.3f} %,\t"
-            f"{speed * 3.6:.2f} km/h,\t"
-            f"{point.power} W ---skipped")
+    if point.power > 150 and has_null_cadence(point):
+        # print(f"{point.time} Point at ({point.latitude:.6f}, {point.longitude:.6f}) "
+        #     f"{point.elevation} meters, "
+        #     f"{slope:.3f} %,\t"
+        #     f"{speed * 3.6:.2f} km/h,\t"
+        #     f"{point.distance_3d(next_point):.2f} m,\t"
+        #     f"{point.power} W ---skipped")
         point.power = 0
 
     # Also add to extensions for GPX serialization
@@ -161,30 +162,71 @@ def write_file():
         gpx_file.write(GPX.to_xml())
         print("Saving")
 
-def mean_power(data):
+def get_power(p):
+    """
+    Given a point, get power value from extensions
+    """
+    res = 0
+    if p.extensions:
+        for ext in p.extensions:
+            if ext.tag == 'power':
+                res = int(ext.text)
+    return res
+
+def mean_power(mpd):
     """
     Show surrounding points of the max power point
+    mpd : Max Point Data
     """
     global FILENAME
-    with open(FILENAME, 'r', encoding="utf-8") as gpx_file:
-        GPX = gpxpy.parse(gpx_file)
+    print("Reading file for surrounding")
+    for i in range(mpd.point_no - 6, mpd.point_no+1):
+        prev_point = GPX.tracks[mpd.track_no].segments[mpd.segment_no].points[i-1]
+        point = GPX.tracks[mpd.track_no].segments[mpd.segment_no].points[i]
+        next_point = GPX.tracks[mpd.track_no].segments[mpd.segment_no].points[i+1]
 
+        point_power = get_power(point)
+        prev_power = get_power(prev_point)
+        if prev_power:
+            ratio = point_power / prev_power
+        else:
+            ratio = 1.00
 
-def power_stats(edited):
+        removed = ""
+        if ratio >= 4:
+            # To do set AVG of surounding ?
+            del point.extensions[1]
+            removed = " --removed"
+
+        speed = point.speed_between(next_point)
+        slope = point.elevation_angle(next_point)
+        dist_delta = point.distance_2d(next_point)
+        print(f"{point.time} Point at ({point.latitude:.6f}, {point.longitude:.6f}) "
+            f"{point.elevation} meters,\t"
+            f"{slope:.3f} %,\t"
+            f"{speed * 3.6:.2f} km/h,\t"
+            f"{dist_delta:.2f} meters,\t"
+            f"{point_power} W\t"
+            f"r={ratio:.2f} %"
+            f"{removed}"
+            )
+        if removed:
+            break
+    if removed:
+        power_stats()
+
+def power_stats():
     """
     Show some power stats
     """
     global GPX, FILENAME
     power_data = []
-    FILENAME = ''.join((FILENAME[:-4], "_powered", FILENAME[-4:])) if edited else FILENAME
-    with open(FILENAME, 'r', encoding="utf-8") as gpx_file:
-        GPX = gpxpy.parse(gpx_file)
-        for i, point_data in enumerate(GPX.get_points_data()):
-            point = point_data.point
-            if point.extensions and len(point.extensions) > 1:
-                for child in point.extensions:
-                    if 'power' in child.tag.lower() and int(child.text) != 0:
-                        power_data.append((i, int(child.text)))
+    for i, point_data in enumerate(GPX.get_points_data()):
+        point = point_data.point
+        if point.extensions and len(point.extensions) > 1:
+            for child in point.extensions:
+                if 'power' in child.tag.lower() and int(child.text) != 0:
+                    power_data.append((point_data, int(child.text)))
 
     print("\n--- Power data ---")
     pp = len(power_data)/GPX.get_track_points_no()
@@ -193,7 +235,8 @@ def power_stats(edited):
         max_tuple = max(power_data, key=lambda x: x[1])
         print(f"Max: {max_tuple[1]} W")
         print(f"Avg: {np.average([item[1] for item in power_data]):.0f} W")
-        # mean_power(max_tuple)
+        mean_power(max_tuple[0])
+    write_file()
 
 def show_stats():
     """
@@ -250,5 +293,5 @@ if __name__ == "__main__":
     SAVE = parse_file()
     if SAVE:
         write_file()
-    show_stats()
-    power_stats(False)
+    # show_stats()
+    power_stats()
