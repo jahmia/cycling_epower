@@ -161,12 +161,13 @@ def write_file():
         gpx_file.write(GPX.to_xml())
         print("Saving")
 
-def power_stats():
+def power_stats(edited):
     """
     Show some power stats
     """
-    global GPX
+    global GPX, FILENAME
     power_data = []
+    FILENAME = ''.join((FILENAME[:-4], "_powered", FILENAME[-4:])) if edited else FILENAME
     with open(FILENAME, 'r', encoding="utf-8") as gpx_file:
         GPX = gpxpy.parse(gpx_file)
         for i, point_data in enumerate(GPX.get_points_data()):
@@ -239,4 +240,4 @@ if __name__ == "__main__":
     if SAVE:
         write_file()
     show_stats()
-    power_stats()
+    power_stats(SAVE)
