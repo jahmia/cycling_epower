@@ -174,8 +174,21 @@ def get_power(p):
     return res
 
 def mean_power(mpd):
+def get_power(p):
+    """
+    Given a point, get power value from extensions
+    """
+    res = 0
+    if p.extensions:
+        for ext in p.extensions:
+            if ext.tag == 'power':
+                res = int(ext.text)
+    return res
+
+def mean_power(mpd):
     """
     Show surrounding points of the max power point
+    mpd : Max Point Data
     mpd : Max Point Data
     """
     global FILENAME
