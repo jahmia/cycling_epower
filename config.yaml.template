@@ -1,0 +1,19 @@
+cycling_style:
+  speed: 23
+  gradient: 1
+  ratio_low: 2.8
+  ratio_high: 6
+constants:
+  Cn: 0.0050
+  Cd: 1
+  A: 0.324
+  w: 1
+  h: 1300
+  p0: 1.225
+  verbose: False
+actual:
+  M: 67
+  m: 9
+target:
+  M: 65
+  m: 9

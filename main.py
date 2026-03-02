@@ -7,12 +7,11 @@ import numpy as np
 
 from lxml import etree
 
+from config import read_config
 from forces import power
 
-RIDER = {
-    "M" : 67,
-    'm' : 9
-}
+
+RIDER = read_config().get("actual")
 
 ELEV_COUNT = 0
 GPX = None
@@ -43,12 +42,12 @@ def get_slope(location1, location2):
         return get_slope(location1, location2)
     return s if s else 0
 
-def calculate_power(speed, gradient, elevation, verbose=False):
+def compute_power(speed, gradient, elevation, verbose=False):
     """
     Given speed, elevation, and slope calculate output power
     """
     p = power(speed, gradient, elevation, RIDER, verbose)
-    return abs(int(p.get("power", 0)))
+    return abs(int(p['power']))
 
 def point_have_power(point):
     """
@@ -102,16 +101,39 @@ def has_null_cadence(point):
                 res = True if cadence == 0 else False
     return res
 
-def set_point_power(point, next_point):
+def set_point_power_element(point):
+    """
+    Given a point with power, save it in extension
+    """
+    if not point.power:
+        return False
+    power_element = etree.Element('power')
+    power_element.text = str(point.power)
+    point.extensions.append(power_element)
+    return True
+
+def set_point_power(point, next_point, t, s, i):
     """Given a point, set his power value.
-    Set it to zero if cadence is 0 rpm."""
-    speed = point.speed_between(next_point)
+    Set it to zero if cadence is 0 rpm.
+
+    Returns
+    ----------
+    save : float
+        True if we want to save changes
+    """
+    global GPX
+    speed = point.speed_between(next_point) * 3.6
 
     slope = get_slope(point, next_point)
     if slope != 0 and slope > 35:
         return False
 
-    point.power = calculate_power(speed * 3.6, slope/100, point.elevation)
+    point.power = compute_power(speed, slope/100, point.elevation)
+    if point.power == 0 and int(speed) == 0:
+        del point
+        GPX.tracks[t].segments[s].remove_point(i)
+        return True
+
     if point.power > 150 and has_null_cadence(point):
         # print(f"{point.time} Point at ({point.latitude:.6f}, {point.longitude:.6f}) "
         #     f"{point.elevation} meters, "
@@ -122,10 +144,8 @@ def set_point_power(point, next_point):
         point.power = 0
 
     # Also add to extensions for GPX serialization
-    power_element = etree.Element('power')
-    power_element.text = str(point.power)
-    point.extensions.append(power_element)
-    return True
+    return set_point_power_element(point)
+
 
 def parse_file():
     """
@@ -138,17 +158,21 @@ def parse_file():
         GPX = gpxpy.parse(gpx_file)
         ELEV_COUNT = 0
         update = False
-        for track in GPX.tracks:
-            for j, segment in enumerate(track.segments):
+        for t, track in enumerate(GPX.tracks):
+            for s, segment in enumerate(track.segments):
                 for i in range(len(segment.points) - 1):
                     point = segment.points[i]
                     if point_have_power(point):
                         continue
-                    next_point = segment.points[i + 1]
+                    try:
+                        next_point = segment.points[i + 1]
+                    except IndexError:
+                        print("out of bound " + str(i))
+                        break
                     if not (point.elevation or next_point.elevation):
                         set_point_elevation([point, next_point])
 
-                    good = set_point_power(point, next_point)
+                    good = set_point_power(point, next_point, t, s, i)
                     if good:
                         update = True
     return update
