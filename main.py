@@ -103,7 +103,8 @@ def has_null_cadence(point):
     return res
 
 def set_point_power(point, next_point):
-    """Given a point, set his power value"""
+    """Given a point, set his power value.
+    Set it to zero if cadence is 0 rpm."""
     speed = point.speed_between(next_point)
 
     slope = get_slope(point, next_point)
@@ -173,15 +174,26 @@ def get_power(p):
                 res = int(ext.text)
     return res
 
-def mean_power(mpd):
+def set_power(p, value):
     """
-    Show surrounding points of the max power point
+    Given a point, set power value in extensions
+    """
+    if p.extensions:
+        for ext in p.extensions:
+            if ext.tag == 'power':
+                ext.text = str(int(value))
+
+def smooth_max_power(mpd):
+    """
+    Show surrounding points of the max power point \
+    and remove point with anormal power
     mpd : Max Point Data
     mpd : Max Point Data
     """
     global FILENAME
     print("Reading file for surrounding")
-    for i in range(mpd.point_no - 6, mpd.point_no+1):
+    edited = ""
+    for i in range(mpd.point_no - 4, mpd.point_no+3):
         prev_point = GPX.tracks[mpd.track_no].segments[mpd.segment_no].points[i-1]
         point = GPX.tracks[mpd.track_no].segments[mpd.segment_no].points[i]
         next_point = GPX.tracks[mpd.track_no].segments[mpd.segment_no].points[i+1]
@@ -193,27 +205,32 @@ def mean_power(mpd):
         else:
             ratio = 1.00
 
-        removed = ""
-        if ratio >= 4:
-            # To do set AVG of surounding ?
-            del point.extensions[1]
-            removed = " --removed"
+        edited = ""
+        if ratio >= 3:
+            # To do After analysis, the speed increase suddenly in 1 second, it doubles
+            # Power drift may comes there
+            new_ratio = ratio / 2.6
+            print(f"Setting to new ratio r = {new_ratio}")
+            point_power = int(prev_power * new_ratio)
+            set_power(point, point_power)
+            edited = " -- ajusted"
 
         speed = point.speed_between(next_point)
         slope = point.elevation_angle(next_point)
         dist_delta = point.distance_2d(next_point)
         print(f"{point.time} Point at ({point.latitude:.6f}, {point.longitude:.6f}) "
             f"{point.elevation} meters,\t"
-            f"{slope:.3f} %,\t"
+            f"{"+" if slope >= 0.0 else ""}{slope:.3f} %,\t"
             f"{speed * 3.6:.2f} km/h,\t"
-            f"{dist_delta:.2f} meters,\t"
+            f"{dist_delta:.2f} m,\t"
             f"{point_power} W\t"
             f"r={ratio:.2f} %"
-            f"{removed}"
-            )
-        if removed:
+            f"{edited}"
+        )
+        if edited:
             break
-    if removed:
+    if edited:
+        write_file()
         power_stats()
 
 def power_stats():
@@ -236,8 +253,7 @@ def power_stats():
         max_tuple = max(power_data, key=lambda x: x[1])
         print(f"Max: {max_tuple[1]} W")
         print(f"Avg: {np.average([item[1] for item in power_data]):.0f} W")
-        mean_power(max_tuple[0])
-    write_file()
+        smooth_max_power(max_tuple[0])
 
 def show_stats():
     """
