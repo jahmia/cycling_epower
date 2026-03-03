@@ -134,7 +134,7 @@ def set_point_power(point, next_point, t, s, i):
         GPX.tracks[t].segments[s].remove_point(i)
         return True
 
-    if point.power > 150 and has_null_cadence(point):
+    if point.power > 343 and has_null_cadence(point):
         # print(f"{point.time} Point at ({point.latitude:.6f}, {point.longitude:.6f}) "
         #     f"{point.elevation} meters, "
         #     f"{slope:.3f} %,\t"
@@ -334,5 +334,5 @@ if __name__ == "__main__":
     SAVE = parse_file()
     if SAVE:
         write_file()
-    # show_stats()
+    show_stats()
     power_stats()
