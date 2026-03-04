@@ -18,6 +18,52 @@ GPX = None
 
 FILENAME = "test_files/3076816628.gpx"
 
+def show_stats():
+    """
+    Some stats about the gpx
+    """
+    global GPX
+    print("\n=== GPX File Analysis ===\n")
+    # Tracks and points
+    print(f"Number of tracks: {len(GPX.tracks)}")
+    print(f"Number of waypoints: {len(GPX.waypoints)}")
+    print(f"Number of routes: {len(GPX.routes)}")
+    print(f"Total track points: {GPX.get_track_points_no()}")
+
+    # Get bounds
+    print("\n=== Geographic Bounds ===")
+    bounds = GPX.get_bounds()
+    if bounds:
+        print(f"Latitude:  {bounds.min_latitude:.4f} to {bounds.max_latitude:.4f}")
+        print(f"Longitude: {bounds.min_longitude:.4f} to {bounds.max_longitude:.4f}")
+
+    # Total distance (2D: lat/lon only)
+    distance_2d = GPX.length_2d()
+    print(f"Distance (2D): {distance_2d / 1000:.2f} km")
+
+    # Total distance (3D: includes elevation)
+    distance_3d = GPX.length_3d()
+    print(f"Distance (3D): {distance_3d / 1000:.2f} km\n")
+
+    # Elevation data
+    min_elev, max_elev = GPX.get_elevation_extremes()
+    print(f"Min elevation: {min_elev}m")
+    print(f"Max elevation: {max_elev}m\n")
+
+    # Uphill/Downhill
+    uphill, downhill = GPX.get_uphill_downhill()
+    print(f"Total uphill:\t{uphill:.0f}m")
+    print(f"Total downhill: {downhill:.0f}m\n")
+
+    # Time information
+    start_time, end_time = GPX.get_time_bounds()
+    print(f"Started:\t{start_time}")
+    print(f"Ended:\t\t{end_time}\n")
+
+    # Duration
+    duration = GPX.get_duration()
+    print(f"Duration: {duration:.0f} seconds ({duration/3600:.2f} hours)")
+
 def get_slope(location1, location2):
     """
     Given two points, get slope
@@ -86,7 +132,7 @@ def set_point_elevation(points):
         print(f"Setting elevation for ({point.latitude}, {point.longitude}) :"
                f"{point.elevation} m, previously {elevation_before} m")
         if ELEV_COUNT == 10:
-            write_file()
+            update_gpx()
             ELEV_COUNT = 0
 
 def has_null_cadence(point):
@@ -105,7 +151,7 @@ def set_point_power_element(point):
     """
     Given a point with power, save it in extension
     """
-    if not point.power:
+    if point.power is None:
         return False
     power_element = etree.Element('power')
     power_element.text = str(point.power)
@@ -128,11 +174,7 @@ def set_point_power(point, next_point, t, s, i):
     if slope != 0 and slope > 35:
         return False
 
-    point.power = compute_power(speed, slope/100, point.elevation)
-    if point.power == 0 and int(speed) == 0:
-        del point
-        GPX.tracks[t].segments[s].remove_point(i)
-        return True
+    point.power = compute_power(speed, slope / 100, point.elevation)
 
     if point.power > 343 and has_null_cadence(point):
         # print(f"{point.time} Point at ({point.latitude:.6f}, {point.longitude:.6f}) "
@@ -177,7 +219,7 @@ def parse_file():
                         update = True
     return update
 
-def write_file():
+def update_gpx():
     """
     Write in the GPX file
     """
@@ -187,14 +229,14 @@ def write_file():
         gpx_file.write(GPX.to_xml())
         print("Saving")
 
-def get_power(p):
+def get_extension(p, tag):
     """
-    Given a point, get power value from extensions
+    Given a point, get value from extension with tag name
     """
     res = 0
     if p.extensions:
         for ext in p.extensions:
-            if ext.tag == 'power':
+            if ext.tag == tag:
                 res = int(ext.text)
     return res
 
@@ -222,39 +264,40 @@ def smooth_max_power(mpd):
         point = GPX.tracks[mpd.track_no].segments[mpd.segment_no].points[i]
         next_point = GPX.tracks[mpd.track_no].segments[mpd.segment_no].points[i+1]
 
-        point_power = get_power(point)
-        prev_power = get_power(prev_point)
+        point_power = get_extension(point, 'power')
+        prev_power = get_extension(prev_point, 'power')
+        next_power = get_extension(next_point, 'power')
         if prev_power:
             ratio = point_power / prev_power
+        elif next_power:
+            ratio = point_power / next_power
         else:
-            ratio = 1.00
+            ratio = 1.0
 
         edited = ""
         if ratio >= 3:
             # To do After analysis, the speed increase suddenly in 1 second, it doubles
             # Power drift may comes there
-            new_ratio = ratio / 2.6
-            print(f"Setting to new ratio r = {new_ratio}")
-            point_power = int(prev_power * new_ratio)
+            ratio /= 2.6
+            point_power = int(prev_power * ratio)
             set_power(point, point_power)
             edited = " -- ajusted"
 
         speed = point.speed_between(next_point)
         slope = point.elevation_angle(next_point)
         dist_delta = point.distance_2d(next_point)
-        print(f"{point.time} Point at ({point.latitude:.6f}, {point.longitude:.6f}) "
+        print(f"{point.time} Point at ({point.latitude:.5f}, {point.longitude:.5f}) "
             f"{point.elevation} meters,\t"
-            f"{"+" if slope >= 0.0 else ""}{slope:.3f} %,\t"
+            f"{"+" if slope >= 0.0 else ""}{slope:.2f} %, "
             f"{speed * 3.6:.2f} km/h,\t"
-            f"{dist_delta:.2f} m,\t"
-            f"{point_power} W\t"
-            f"r={ratio:.2f} %"
+            f"{dist_delta:.2f} m,"
+            f"r={ratio:.2f} %\t"
+            f"{point_power} W"
             f"{edited}"
         )
         if edited:
             break
     if edited:
-        write_file()
         power_stats()
 
 def power_stats():
@@ -279,52 +322,6 @@ def power_stats():
         print(f"Avg: {np.average([item[1] for item in power_data]):.0f} W")
         smooth_max_power(max_tuple[0])
 
-def show_stats():
-    """
-    Some stats about the gpx
-    """
-    global GPX
-    print("\n=== GPX File Analysis ===\n")
-    # Tracks and points
-    print(f"Number of tracks: {len(GPX.tracks)}")
-    print(f"Number of waypoints: {len(GPX.waypoints)}")
-    print(f"Number of routes: {len(GPX.routes)}")
-    print(f"Total track points: {GPX.get_track_points_no()}")
-
-    # Get bounds
-    print("\n=== Geographic Bounds ===")
-    bounds = GPX.get_bounds()
-    if bounds:
-        print(f"Latitude:  {bounds.min_latitude:.4f} to {bounds.max_latitude:.4f}")
-        print(f"Longitude: {bounds.min_longitude:.4f} to {bounds.max_longitude:.4f}")
-
-    # Total distance (2D: lat/lon only)
-    distance_2d = GPX.length_2d()
-    print(f"Distance (2D): {distance_2d / 1000:.2f} km")
-
-    # Total distance (3D: includes elevation)
-    distance_3d = GPX.length_3d()
-    print(f"Distance (3D): {distance_3d / 1000:.2f} km\n")
-
-    # Elevation data
-    min_elev, max_elev = GPX.get_elevation_extremes()
-    print(f"Min elevation: {min_elev}m")
-    print(f"Max elevation: {max_elev}m\n")
-
-    # Uphill/Downhill
-    uphill, downhill = GPX.get_uphill_downhill()
-    print(f"Total uphill:\t{uphill:.0f}m")
-    print(f"Total downhill: {downhill:.0f}m\n")
-
-    # Time information
-    start_time, end_time = GPX.get_time_bounds()
-    print(f"Started:\t{start_time}")
-    print(f"Ended:\t\t{end_time}\n")
-
-    # Duration
-    duration = GPX.get_duration()
-    print(f"Duration: {duration:.0f} seconds ({duration/3600:.2f} hours)")
-
 if __name__ == "__main__":
     if len(sys.argv) <= 1:
         print("This module needs a parameter")
@@ -333,6 +330,7 @@ if __name__ == "__main__":
     FILENAME = sys.argv[1]
     SAVE = parse_file()
     if SAVE:
-        write_file()
+        update_gpx()
     show_stats()
     power_stats()
+    update_gpx()

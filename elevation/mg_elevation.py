@@ -1,13 +1,14 @@
+"""
+Get elevation from a local dem file
+once the file is downloaded, we can process elevation in offline mode
+"""
 import os
 import requests
-import zipfile
 
 import rasterio
 import pandas as pd
 import numpy as np
-# from rasterio.mask import mask
 
-# Step 1: Download SRTM data for Madagascar
 def download_madagascar_dem():
     """
     Download SRTM 90m DEM for Madagascar from OpenTopography
@@ -22,7 +23,6 @@ def download_madagascar_dem():
 
     return "madagascar_dem.tif"
 
-# Step 2: Create sample points across Madagascar
 def create_madagascar_points():
     """
     Create sample elevation points across Madagascar
@@ -42,7 +42,6 @@ def create_madagascar_points():
 
     return pd.DataFrame(points_data)
 
-# Step 3: Extract elevation for Madagascar points
 def get_elevations_madagascar(raster_file, points_df):
     """
     Extract elevations from DEM for Madagascar points
@@ -141,11 +140,11 @@ if __name__ == "__main__":
     print(points_df)
 
     # Use your downloaded DEM file
-    raster_file = "madagascar_dem.tif"
+    RF = "madagascar_dem.tif"
 
     # Check if file exists
-    if not os.path.exists(raster_file):
-        print(f"\n⚠️  DEM file '{raster_file}' not found!")
+    if not os.path.exists(RF):
+        print(f"\n⚠️  DEM file '{RF}' not found!")
         print("Download from: https://cloud.sdsc.edu/v1/AUTH_opentopography/Raster/SRTM_GL3/")
         print("Select bounds for Madagascar: 12°S-25°S, 43°E-51°E")
     else:
