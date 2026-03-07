@@ -7,13 +7,11 @@ import numpy as np
 
 from lxml import etree
 
-from config import read_config
+from config import arg_parser
 from forces import power
 
 
-RIDER = read_config().get("actual")
-
-ELEV_COUNT = 0
+ELEV_COUNT = 0 # Save the file when you have requested elevation API 10 times
 GPX = None
 
 FILENAME = "test_files/3076816628.gpx"
@@ -92,7 +90,7 @@ def compute_power(speed, gradient, elevation, verbose=False):
     """
     Given speed, elevation, and slope calculate output power
     """
-    p = power(speed, gradient, elevation, RIDER, verbose)
+    p = power(speed, gradient, elevation, args.rider, verbose)
     return abs(int(p['power']))
 
 def point_have_power(point):
@@ -179,14 +177,14 @@ def set_point_power(point, next_point):
     null_cadence, rpm = has_null_cadence(point)
     if rpm < 30:
         point.power = 0
-    else:
-        print(f"{point.time} Point at ({point.latitude:.6f}, {point.longitude:.6f}) "
-            f"{point.elevation} meters, "
-            f"{slope:.3f} %,\t"
-            f"{speed * 3.6:.2f} km/h, "
-            f"{point.distance_3d(next_point):.2f} m, "
-            f"{rpm} rpm "
-            f"{point.power} W")
+    # else:
+        # print(f"{point.time} Point at ({point.latitude:.6f}, {point.longitude:.6f}) "
+        #     f"{point.elevation} meters, "
+        #     f"{slope:.3f} %,\t"
+        #     f"{speed * 3.6:.2f} km/h, "
+        #     f"{point.distance_3d(next_point):.2f} m, "
+        #     f"{rpm} rpm "
+        #     f"{point.power} W")
 
     if point.power > 323 and null_cadence:
         point.power = 0
@@ -309,7 +307,7 @@ def power_stats():
     """
     Show some power stats
     """
-    global GPX, FILENAME
+    global GPX
     power_data = []
     for i, point_data in enumerate(GPX.get_points_data()):
         point = point_data.point
@@ -321,6 +319,7 @@ def power_stats():
     print("\n--- Power data ---")
     pp = len(power_data)/GPX.get_track_points_no()
     print(f"{len(power_data)} of {GPX.get_track_points_no()} points ({pp * 100:.2f} %) with power")
+    print(f"rider: {args.rider["M"]} kg")
     if power_data:
         max_tuple = max(power_data, key=lambda x: x[1])
         print(f"Max: {max_tuple[1]} W")
@@ -328,9 +327,7 @@ def power_stats():
         smooth_max_power(max_tuple[0])
 
 if __name__ == "__main__":
-    if len(sys.argv) <= 1:
-        print("This module needs a parameter")
-        exit(1)
+    args = arg_parser()
     ELEV_COUNT = 0
     FILENAME = sys.argv[1]
     SAVE = parse_file()
