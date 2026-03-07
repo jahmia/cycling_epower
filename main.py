@@ -137,6 +137,9 @@ def has_null_cadence(point):
     """
     Given a point, check if it has cadence and his value equals 0
     """
+    if args.no_cad:
+        return False, 87 # This is my actual prefered cadence
+
     res = False
     cadence = 0
     for ext in point.extensions:
