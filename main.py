@@ -140,6 +140,7 @@ def has_null_cadence(point):
     Given a point, check if it has cadence and his value equals 0
     """
     res = False
+    cadence = 0
     for ext in point.extensions:
         for child in ext:
             if "cad" in child.tag and child.text:
@@ -176,7 +177,9 @@ def set_point_power(point, next_point):
 
     point.power = compute_power(speed, slope / 100, point.elevation)
     null_cadence, rpm = has_null_cadence(point)
-    if 30 > rpm:
+    if rpm < 30:
+        point.power = 0
+    else:
         print(f"{point.time} Point at ({point.latitude:.6f}, {point.longitude:.6f}) "
             f"{point.elevation} meters, "
             f"{slope:.3f} %,\t"
@@ -184,7 +187,6 @@ def set_point_power(point, next_point):
             f"{point.distance_3d(next_point):.2f} m, "
             f"{rpm} rpm "
             f"{point.power} W")
-        point.power = 0
 
     if point.power > 323 and null_cadence:
         point.power = 0
@@ -311,7 +313,7 @@ def power_stats():
     power_data = []
     for i, point_data in enumerate(GPX.get_points_data()):
         point = point_data.point
-        if point.extensions and len(point.extensions) > 1:
+        if point.extensions:
             for child in point.extensions:
                 if 'power' in child.tag.lower() and int(child.text) != 0:
                     power_data.append((point_data, int(child.text)))
