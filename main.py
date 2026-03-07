@@ -145,7 +145,7 @@ def has_null_cadence(point):
             if "cad" in child.tag and child.text:
                 cadence = int(child.text)
                 res = True if cadence == 0 else False
-    return res
+    return res, cadence
 
 def set_point_power_element(point):
     """
@@ -158,7 +158,7 @@ def set_point_power_element(point):
     point.extensions.append(power_element)
     return True
 
-def set_point_power(point, next_point, t, s, i):
+def set_point_power(point, next_point):
     """Given a point, set his power value.
     Set it to zero if cadence is 0 rpm.
 
@@ -171,23 +171,26 @@ def set_point_power(point, next_point, t, s, i):
     speed = point.speed_between(next_point) * 3.6
 
     slope = get_slope(point, next_point)
-    if slope != 0 and slope > 35:
+    if slope != 0 and abs(slope) > 35:
         return False
 
     point.power = compute_power(speed, slope / 100, point.elevation)
+    null_cadence, rpm = has_null_cadence(point)
+    if 30 > rpm:
+        print(f"{point.time} Point at ({point.latitude:.6f}, {point.longitude:.6f}) "
+            f"{point.elevation} meters, "
+            f"{slope:.3f} %,\t"
+            f"{speed * 3.6:.2f} km/h, "
+            f"{point.distance_3d(next_point):.2f} m, "
+            f"{rpm} rpm "
+            f"{point.power} W")
+        point.power = 0
 
-    if point.power > 343 and has_null_cadence(point):
-        # print(f"{point.time} Point at ({point.latitude:.6f}, {point.longitude:.6f}) "
-        #     f"{point.elevation} meters, "
-        #     f"{slope:.3f} %,\t"
-        #     f"{speed * 3.6:.2f} km/h,\t"
-        #     f"{point.distance_3d(next_point):.2f} m,\t"
-        #     f"{point.power} W ---skipped")
+    if point.power > 323 and null_cadence:
         point.power = 0
 
     # Also add to extensions for GPX serialization
     return set_point_power_element(point)
-
 
 def parse_file():
     """
@@ -214,7 +217,7 @@ def parse_file():
                     if not (point.elevation or next_point.elevation):
                         set_point_elevation([point, next_point])
 
-                    good = set_point_power(point, next_point, t, s, i)
+                    good = set_point_power(point, next_point)
                     if good:
                         update = True
     return update

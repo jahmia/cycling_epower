@@ -5,6 +5,7 @@ Estimated power integrated
 - [x] Mean power
 - [x] When cadence is 0 power is null
 - [x] Speed & Power drift
+- [ ] What if there is no cadence sensor ?
 - [ ] Object method, dot notation
 - [ ] Open point as URL
 - [ ] End point have power
