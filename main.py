@@ -275,7 +275,7 @@ def smooth_max_power(mpd):
             ratio = 1.0
 
         edited = ""
-        if ratio >= 3:
+        if ratio >= 2.85:
             # To do After analysis, the speed increase suddenly in 1 second, it doubles
             # Power drift may comes there
             ratio /= 2.6
