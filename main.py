@@ -1,15 +1,85 @@
 """Module providing estimated power into gpx file."""
 import sys
 import gpxpy
-import gpxpy.gpx
 import requests
 import numpy as np
 
+from gpxpy.gpx import GPXTrackPoint
 from lxml import etree
 
 from config import arg_parser
 from forces import power
 
+"""
+Extends GPXTrackPoint class
+"""
+
+class TrackPoint(GPXTrackPoint):
+    """Extends"""
+
+    def have_power(self):
+        """
+        Check if a point have a power extension
+
+        :param point: GPX Point
+        """
+        for ext in self.extensions:
+            if "power" in ext.tag:
+                return True
+        return False
+
+    def set_power_element(self):
+        """
+        Given a point with power, save it in extension
+        """
+        if self.power is None:
+            return False
+        power_element = etree.Element('power')
+        power_element.text = str(self.power)
+        self.extensions.append(power_element)
+        return True
+
+    def has_null_cadence(self: GPXTrackPoint, no_cad=True):
+        """
+        Given a point, check if it has cadence and his value equals 0
+        """
+        if no_cad:
+            return False, 87 # This is my actual prefered cadence
+
+        res = False
+        cadence = 0
+        for ext in self.extensions:
+            for child in ext:
+                if "cad" in child.tag and child.text:
+                    cadence = int(child.text)
+                    res = True if cadence == 0 else False
+        return res, cadence
+
+    def set_power(self, value):
+        """
+        Given a point, set power value in extensions
+        """
+        if self.extensions:
+            for ext in self.extensions:
+                if ext.tag == 'power':
+                    ext.text = str(int(value))
+
+    def get_extension(self, tag):
+        """
+        Given a point, get value from extension with tag name
+        """
+        res = 0
+        if self.extensions:
+            for ext in self.extensions:
+                if ext.tag == tag:
+                    res = int(ext.text)
+        return res
+
+gpxpy.gpx.GPXTrackPoint.has_null_cadence = TrackPoint.has_null_cadence
+gpxpy.gpx.GPXTrackPoint.have_power = TrackPoint.have_power
+gpxpy.gpx.GPXTrackPoint.get_extension = TrackPoint.get_extension
+gpxpy.gpx.GPXTrackPoint.set_power = TrackPoint.set_power
+gpxpy.gpx.GPXTrackPoint.set_power_element = TrackPoint.set_power_element
 
 ELEV_COUNT = 0 # Save the file when you have requested elevation API 10 times
 GPX = None
@@ -93,17 +163,6 @@ def compute_power(speed, gradient, elevation, verbose=False):
     p = power(speed, gradient, elevation, args.rider, verbose)
     return abs(int(p['power']))
 
-def point_have_power(point):
-    """
-    Check if a point have a power extension
-
-    :param point: GPX Point
-    """
-    for ext in point.extensions:
-        if "power" in ext.tag:
-            return True
-    return False
-
 def get_elevation_from_api(lat, lon):
     """
     Elevation using Open Elevation API (free, no key required)
@@ -133,33 +192,6 @@ def set_point_elevation(points):
             update_gpx()
             ELEV_COUNT = 0
 
-def has_null_cadence(point):
-    """
-    Given a point, check if it has cadence and his value equals 0
-    """
-    if args.no_cad:
-        return False, 87 # This is my actual prefered cadence
-
-    res = False
-    cadence = 0
-    for ext in point.extensions:
-        for child in ext:
-            if "cad" in child.tag and child.text:
-                cadence = int(child.text)
-                res = True if cadence == 0 else False
-    return res, cadence
-
-def set_point_power_element(point):
-    """
-    Given a point with power, save it in extension
-    """
-    if point.power is None:
-        return False
-    power_element = etree.Element('power')
-    power_element.text = str(point.power)
-    point.extensions.append(power_element)
-    return True
-
 def set_point_power(point, next_point):
     """Given a point, set his power value.
     Set it to zero if cadence is 0 rpm.
@@ -177,7 +209,7 @@ def set_point_power(point, next_point):
         return False
 
     point.power = compute_power(speed, slope / 100, point.elevation)
-    null_cadence, rpm = has_null_cadence(point)
+    null_cadence, rpm = point.has_null_cadence()
     if rpm < 30:
         point.power = 0
     # else:
@@ -193,7 +225,7 @@ def set_point_power(point, next_point):
         point.power = 0
 
     # Also add to extensions for GPX serialization
-    return set_point_power_element(point)
+    return point.set_power_element()
 
 def parse_file():
     """
@@ -210,7 +242,7 @@ def parse_file():
             for s, segment in enumerate(track.segments):
                 for i in range(len(segment.points) - 1):
                     point = segment.points[i]
-                    if point_have_power(point):
+                    if point.have_power():
                         continue
                     try:
                         next_point = segment.points[i + 1]
@@ -235,26 +267,6 @@ def update_gpx():
         gpx_file.write(GPX.to_xml())
         print("Saving")
 
-def get_extension(p, tag):
-    """
-    Given a point, get value from extension with tag name
-    """
-    res = 0
-    if p.extensions:
-        for ext in p.extensions:
-            if ext.tag == tag:
-                res = int(ext.text)
-    return res
-
-def set_power(p, value):
-    """
-    Given a point, set power value in extensions
-    """
-    if p.extensions:
-        for ext in p.extensions:
-            if ext.tag == 'power':
-                ext.text = str(int(value))
-
 def smooth_max_power(mpd):
     """
     Show surrounding points of the max power point \
@@ -270,9 +282,9 @@ def smooth_max_power(mpd):
         point = GPX.tracks[mpd.track_no].segments[mpd.segment_no].points[i]
         next_point = GPX.tracks[mpd.track_no].segments[mpd.segment_no].points[i+1]
 
-        point_power = get_extension(point, 'power')
-        prev_power = get_extension(prev_point, 'power')
-        next_power = get_extension(next_point, 'power')
+        point_power = point.get_extension('power')
+        prev_power = prev_point.get_extension('power')
+        next_power = next_point.get_extension('power')
         if prev_power:
             ratio = point_power / prev_power
         elif next_power:
@@ -286,7 +298,7 @@ def smooth_max_power(mpd):
             # Power drift may comes there
             ratio /= 2.6
             point_power = int(prev_power * ratio)
-            set_power(point, point_power)
+            point.set_power(point_power)
             edited = " -- ajusted"
 
         speed = point.speed_between(next_point)
