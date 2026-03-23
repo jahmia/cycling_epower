@@ -14,7 +14,7 @@ def read_config():
             config = yaml.safe_load(cf_file.read())
             return config
     except FileNotFoundError:
-        print("Configuration file not found! Aborting.")
+        exit("Configuration file not found! Aborting.")
 
 def arg_parser():
     """
