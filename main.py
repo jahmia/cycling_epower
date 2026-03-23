@@ -39,7 +39,7 @@ class TrackPoint(GPXTrackPoint):
         self.extensions.append(power_element)
         return True
 
-    def has_null_cadence(self: GPXTrackPoint, no_cad=True):
+    def has_null_cadence(self: GPXTrackPoint, no_cad: bool):
         """
         Given a point, check if it has cadence and his value equals 0
         """
@@ -202,6 +202,7 @@ def set_point_power(point, next_point):
         True if we want to save changes
     """
     global GPX
+    speed = point.speed_between(next_point)
     speed = point.speed_between(next_point) * 3.6
 
     slope = get_slope(point, next_point)
@@ -209,7 +210,7 @@ def set_point_power(point, next_point):
         return False
 
     point.power = compute_power(speed, slope / 100, point.elevation)
-    null_cadence, rpm = point.has_null_cadence()
+    null_cadence, rpm = point.has_null_cadence(no_cad=args.no_cad)
     if rpm < 30:
         point.power = 0
     # else:
@@ -249,6 +250,9 @@ def parse_file():
                     except IndexError:
                         print("out of bound " + str(i))
                         break
+                    if point.time == next_point.time:
+                        print(f"Skipped duplicated time at {point.time}")
+                        continue
                     if not (point.elevation or next_point.elevation):
                         set_point_elevation([point, next_point])
 
@@ -271,7 +275,6 @@ def smooth_max_power(mpd):
     """
     Show surrounding points of the max power point \
     and remove point with anormal power
-    mpd : Max Point Data
     mpd : Max Point Data
     """
     global FILENAME
