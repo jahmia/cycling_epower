@@ -1,0 +1,14 @@
+Create a wide horizontal hero banner for a GitHub README (aspect ratio 3:1 or 1200x400 pixels), cinematic and professional style.
+
+Scene: A dynamic road cyclist in aerodynamic position climbing a steep mountain road at golden hour sunset. The background features dramatic mountain landscape with winding road, warm orange and teal sky gradients.
+
+Overlay on the right side: Semi-transparent futuristic data visualization panels showing:
+- A glowing power curve graph (watts vs time) in bright cyan and electric blue lines with peaks highlighted
+- Speed and elevation profile graphs below it
+- Subtle numerical readouts like "320W", "45 km/h", "8% grade"
+
+Left side: a small bold modern sans-serif title clean font: "Power Without the Meter" in teal.
+
+Foreground: Stylized bicycle silhouette or wheel with subtle power meter ring glowing in cyan. Include faint physics icons (gravity arrow, wind drag lines, rolling resistance symbols) integrated elegantly.
+
+Overall mood: Energetic, scientific, premium tech-meets-cycling. High contrast, sharp details, cinematic lighting, no text blur, clean composition suitable for GitHub hero banner. Darker background to make text pop. Professional, modern, minimal clutter.
