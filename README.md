@@ -52,13 +52,13 @@ Contributions are very welcome!
 GPL-3.0
 
 ---
+<div align="center">
+
 [![Python](https://img.shields.io/badge/Python-3.8+-3776AB?style=flat&logo=python&logoColor=white)](https://www.python.org)
 [![License](https://img.shields.io/github/license/jahmia/cycling_epower?style=flat&color=green)](LICENSE)
 [![Last Commit](https://img.shields.io/github/last-commit/jahmia/cycling_epower?style=flat)](https://github.com/jahmia/cycling_epower/commits/main)
 [![Issues](https://img.shields.io/github/issues/jahmia/cycling_epower?style=flat&color=yellow)](https://github.com/jahmia/cycling_epower/issues)
 [![Hits](https://hits.sh/github.com/jahmia/cycling_epower.svg?style=flat-square&label=Views)](https://hits.sh/github.com/jahmia/cycling_epower/)
-
-<div align="center">
 
 What's your watts ?
 
