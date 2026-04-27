@@ -251,7 +251,9 @@ def parse_file():
                         print("out of bound " + str(i))
                         break
                     if point.time == next_point.time:
-                        print(f"Skipped duplicated time at {point.time}")
+                        print(f"Ignoring duplicated time at {point.time}")
+                        del GPX.tracks[t].segments[s].points[i]
+                        update = True
                         continue
                     if not (point.elevation or next_point.elevation):
                         set_point_elevation([point, next_point])
